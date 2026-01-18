@@ -61,14 +61,16 @@ export async function GET(req: NextRequest) {
     // If email provided, check user status
     if (email) {
       try {
-        const { data: userData, error: userError } = await supabase.auth.admin.getUserByEmail(email)
+        // Use listUsers to find user by email since getUserByEmail doesn't exist
+        const { data: usersData, error: userError } = await supabase.auth.admin.listUsers()
+        const userData = usersData.users.find(user => user.email === email)
         
         debugInfo.user = {
-          found: !!userData?.user,
-          email: userData?.user?.email || null,
-          emailConfirmed: !!userData?.user?.email_confirmed_at,
-          createdAt: userData?.user?.created_at || null,
-          lastSignIn: userData?.user?.last_sign_in_at || null,
+          found: !!userData,
+          email: userData?.email || null,
+          emailConfirmed: !!userData?.email_confirmed_at,
+          createdAt: userData?.created_at || null,
+          lastSignIn: userData?.last_sign_in_at || null,
           error: userError?.message || null,
         }
       } catch (err: any) {
