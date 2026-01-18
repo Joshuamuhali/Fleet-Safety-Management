@@ -5,7 +5,7 @@ import { auditLog, handleError } from "@/lib/api-helpers"
 import { checkRateLimit } from "@/lib/rate-limit"
 
 interface Params {
-  params: Promise<{ tripId: string }>
+  params: Promise<{ tripId: string; alertId?: string }>
 }
 
 /**
@@ -247,13 +247,21 @@ export async function POST(req: NextRequest, { params }: Params) {
  */
 export async function PUT(
   req: NextRequest, 
-  { params }: { params: Promise<{ tripId: string; alertId: string }> }
+  { params }: { params: Promise<{ tripId: string; alertId?: string }> }
 ) {
   try {
     const { tripId, alertId } = await params
     const user = await getCurrentUserServer()
     if (!user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+    }
+
+    // If alertId is not provided, this is a general alerts endpoint
+    if (!alertId) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Alert ID is required for this endpoint" 
+      }, { status: 400 })
     }
 
     const supabase = await getSupabaseServer()
