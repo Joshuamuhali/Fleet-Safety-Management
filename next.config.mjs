@@ -12,8 +12,7 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
-  // Performance optimizations
-  swcMinify: true,
+  // Performance optimizations (swcMinify is now automatic in Next.js 16)
   poweredByHeader: false,
   reactStrictMode: true,
   // Enable compression
