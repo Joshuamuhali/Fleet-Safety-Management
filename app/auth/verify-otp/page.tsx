@@ -16,6 +16,8 @@ function VerifyOTPContent() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
 
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +63,38 @@ function VerifyOTPContent() {
     }
   };
 
+  const handleResendOTP = async () => {
+    if (!email) {
+      setError('Email is required to resend OTP');
+      return;
+    }
+
+    setResending(true);
+    setError('');
+    setResendSuccess(false);
+
+    try {
+      const response = await fetch('/api/auth/resend-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResendSuccess(true);
+        setTimeout(() => setResendSuccess(false), 5000);
+      } else {
+        setError(data.error || 'Failed to resend OTP');
+      }
+    } catch (err) {
+      setError('Failed to resend OTP. Please try again.');
+    } finally {
+      setResending(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
@@ -75,7 +109,7 @@ function VerifyOTPContent() {
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
             placeholder="Enter OTP"
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
             required
           />
           
@@ -83,13 +117,31 @@ function VerifyOTPContent() {
             <p className="text-red-500 text-sm">{error}</p>
           )}
           
+          {resendSuccess && (
+            <p className="text-green-600 text-sm font-medium">OTP has been resent to your email!</p>
+          )}
+          
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors font-medium"
           >
             {loading ? 'Verifying...' : 'Verify OTP'}
           </button>
+
+          <div className="pt-2 border-t border-gray-200">
+            <p className="text-center text-sm text-gray-600 mb-3">
+              Didn't receive the code?
+            </p>
+            <button
+              type="button"
+              onClick={handleResendOTP}
+              disabled={resending || !email}
+              className="w-full bg-green-50 text-green-700 border border-green-300 py-2 rounded-lg hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {resending ? 'Sending OTP...' : 'Resend OTP'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

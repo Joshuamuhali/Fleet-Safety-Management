@@ -58,7 +58,7 @@ const MODULE_RISK_MULTIPLIERS = {
 }
 
 // Critical item weightings
-const CRITICAL_ITEM_WEIGHTS = {
+const CRITICAL_ITEM_WEIGHTS: Record<string, number> = {
   'Alcohol Breath Test/Drugs': 5.0,
   'Temperature Check': 3.0,
   'Brakes: Test brake function': 5.0,
@@ -165,7 +165,7 @@ async function calculatePreTripRiskScore(
     }
 
     // Add completion rate factor
-    const completedModules = modules.filter(m => m.status === 'completed').length
+    const completedModules = modules.filter((m: any) => m.status === 'completed').length
     const completionRate = completedModules / modules.length
     
     if (completionRate < 1.0) {
@@ -567,7 +567,7 @@ export async function getModuleRiskScores(
       return []
     }
 
-    return modules.map(module => {
+    return modules.map((module: any) => {
       const moduleScore = calculateModuleRiskScore(module)
       const totalItems = module.module_items?.length || 0
       const criticalItems = module.module_items?.filter((item: any) => item.critical).length || 0
@@ -619,7 +619,7 @@ export async function calculateRiskTrend(
       }
     }
 
-    const completedTrips = trips.filter(trip => trip.status === 'completed' || trip.status === 'fully_completed')
+    const completedTrips = trips.filter((trip: any) => trip.status === 'completed' || trip.status === 'fully_completed')
     const averageScore = completedTrips.reduce((sum: number, trip: any) => sum + (trip.aggregate_score || 0), 0) / completedTrips.length
 
     const riskDistribution = completedTrips.reduce((dist: any, trip: any) => {

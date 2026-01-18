@@ -11,7 +11,7 @@ import {
   CheckCircle, 
   Clock, 
   MapPin, 
-  Speedometer,
+  Gauge,
   Activity,
   Bell,
   Eye,
@@ -80,7 +80,7 @@ export default function RealTimeMonitoring({
       const response = await fetch(`/api/trips/${tripId}/monitoring?include_gps=true&include_violations=true&include_fatigue=true&include_alerts=true`, {
         credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${await supabase.auth.getSession().then(s => s.data.session?.access_token)}`
+          'Authorization': `Bearer ${await supabase.auth.getSession().then((s: any) => s.data.session?.access_token)}`
         }
       })
       
@@ -122,7 +122,7 @@ export default function RealTimeMonitoring({
           table: 'real_time_alerts',
           filter: `trip_id=eq.${tripId}`
         }, 
-        (payload) => {
+        (payload: any) => {
           console.log('Real-time alert:', payload)
           fetchMonitoringData() // Refresh data on changes
         }
@@ -134,7 +134,7 @@ export default function RealTimeMonitoring({
           table: 'speed_violations',
           filter: `trip_id=eq.${tripId}`
         },
-        (payload) => {
+        (payload: any) => {
           console.log('Real-time violation:', payload)
           fetchMonitoringData() // Refresh data on changes
         }
@@ -160,7 +160,7 @@ export default function RealTimeMonitoring({
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await supabase.auth.getSession().then(s => s.data.session?.access_token)}`
+          'Authorization': `Bearer ${await supabase.auth.getSession().then((s: any) => s.data.session?.access_token)}`
         },
         body: JSON.stringify({ acknowledge: true })
       })
@@ -329,7 +329,7 @@ export default function RealTimeMonitoring({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Speed Violations</CardTitle>
-            <Speedometer className="h-4 w-4 text-muted-foreground" />
+            <Gauge className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="space-y-2">

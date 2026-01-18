@@ -330,18 +330,18 @@ export async function getTripStatistics(
 
     // Calculate statistics
     const totalTrips = trips?.length || 0
-    const approvedTrips = trips?.filter(t => t.status === "approved").length || 0
-    const rejectedTrips = trips?.filter(t => t.status === "rejected").length || 0
-    const pendingTrips = trips?.filter(t => t.status === "submitted" || t.status === "under_review").length || 0
+    const approvedTrips = trips?.filter((t: any) => t.status === "approved").length || 0
+    const rejectedTrips = trips?.filter((t: any) => t.status === "rejected").length || 0
+    const pendingTrips = trips?.filter((t: any) => t.status === "submitted" || t.status === "under_review").length || 0
     
     const riskLevels = {
-      low: trips?.filter(t => t.risk_level === "low").length || 0,
-      medium: trips?.filter(t => t.risk_level === "medium").length || 0,
-      high: trips?.filter(t => t.risk_level === "high").length || 0,
-      critical: trips?.filter(t => t.risk_level === "critical").length || 0
+      low: trips?.filter((t: any) => t.risk_level === "low").length || 0,
+      medium: trips?.filter((t: any) => t.risk_level === "medium").length || 0,
+      high: trips?.filter((t: any) => t.risk_level === "high").length || 0,
+      critical: trips?.filter((t: any) => t.risk_level === "critical").length || 0
     }
 
-    const averageScore = trips?.reduce((sum, t) => sum + (t.aggregate_score || 0), 0) / (totalTrips || 0) || 0
+    const averageScore = trips?.reduce((sum: number, t: any) => sum + (t.aggregate_score || 0), 0) / (totalTrips || 0) || 0
 
     return {
       totalTrips,

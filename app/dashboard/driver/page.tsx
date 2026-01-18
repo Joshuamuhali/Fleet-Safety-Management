@@ -150,30 +150,94 @@ export default function DriverDashboard() {
         setUserProfile(profile)
       }
 
-      // Fetch user-specific test history (new schema). Fallback to test_results if history isn't available.
+      // Fetch trips (pre-trip inspections) - these are the main "tests"
+      const { data: tripsData, error: tripsError } = await supabase
+        .from('trips')
+        .select('*')
+        .or(`user_id.eq.${session.user.id},driver_id.eq.${session.user.id}`)
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+      // Fetch test history (separate test system)
       const { data: historyRows, error: historyError } = await supabase
         .from('test_history')
         .select('*')
         .eq('driver_id', session.user.id)
         .order('completed_at', { ascending: false })
 
-      if (!historyError) {
-        setTests(historyRows || [])
-      } else {
-        console.error('Test history fetch error:', historyError)
+      // Fetch test results (fallback)
+      const { data: resultRows, error: resultsError } = await supabase
+        .from('test_results')
+        .select('*')
+        .eq('driver_id', session.user.id)
+        .order('completed_at', { ascending: false })
 
-        const { data: resultRows, error: resultsError } = await supabase
-          .from('test_results')
-          .select('*')
-          .eq('driver_id', session.user.id)
-          .order('completed_at', { ascending: false })
+      // Combine all test data
+      const allTests: Test[] = []
 
-        if (resultsError) {
-          console.error('Test results fetch error:', resultsError)
-        } else {
-          setTests(resultRows || [])
-        }
+      // Map trips to Test interface
+      if (tripsData && !tripsError) {
+        tripsData.forEach((trip: any) => {
+          allTests.push({
+            id: trip.id,
+            driver_id: trip.user_id || trip.driver_id || session.user.id,
+            test_type: 'Pre-Trip Inspection',
+            status: trip.status === 'approved' ? 'completed' : 
+                   trip.status === 'rejected' || trip.status === 'failed' ? 'failed' :
+                   trip.status === 'submitted' || trip.status === 'under_review' ? 'in_progress' : 'pending',
+            score: trip.aggregate_score,
+            created_at: trip.created_at,
+            completed_at: trip.status === 'approved' || trip.status === 'rejected' ? trip.updated_at : undefined
+          })
+        })
+      } else if (tripsError) {
+        console.error('Trips fetch error:', tripsError)
       }
+
+      // Map test history to Test interface
+      if (historyRows && !historyError) {
+        historyRows.forEach((history: any) => {
+          allTests.push({
+            id: history.id,
+            driver_id: history.driver_id,
+            test_type: history.test_type || 'Safety Test',
+            status: history.status || 'completed',
+            score: history.final_score,
+            created_at: history.created_at,
+            completed_at: history.completed_at
+          })
+        })
+      } else if (historyError) {
+        console.error('Test history fetch error:', historyError)
+      }
+
+      // Map test results to Test interface
+      if (resultRows && !resultsError) {
+        resultRows.forEach((result: any) => {
+          allTests.push({
+            id: result.id,
+            driver_id: result.driver_id,
+            test_type: result.test_type || 'Safety Test',
+            status: result.status || 'completed',
+            score: result.score || result.percentage,
+            created_at: result.created_at || result.started_at,
+            completed_at: result.completed_at
+          })
+        })
+      } else if (resultsError) {
+        console.error('Test results fetch error:', resultsError)
+      }
+
+      // Sort by created_at descending and remove duplicates
+      const uniqueTests = allTests
+        .filter((test, index, self) => 
+          index === self.findIndex((t) => t.id === test.id)
+        )
+        .sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+
+      setTests(uniqueTests)
 
     } catch (error) {
       console.error('Auth check error:', error)

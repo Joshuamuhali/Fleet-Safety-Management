@@ -127,11 +127,11 @@ export async function GET(req: NextRequest) {
     // Summary statistics
     result.summary = {
       totalRules: rules?.length || 0,
-      activeRules: rules?.filter(r => r.is_active).length || 0,
+      activeRules: rules?.filter((r: any) => r.is_active).length || 0,
       totalActions: actions?.length || 0,
-      criticalActions: actions?.filter(a => a.action_severity === "critical").length || 0,
-      automatedActions: actions?.filter(a => a.automated).length || 0,
-      activeWorkflows: workflows?.filter(w => w.is_active).length || 0,
+      criticalActions: actions?.filter((a: any) => a.action_severity === "critical").length || 0,
+      automatedActions: actions?.filter((a: any) => a.automated).length || 0,
+      activeWorkflows: workflows?.filter((w: any) => w.is_active).length || 0,
     }
 
     return NextResponse.json({

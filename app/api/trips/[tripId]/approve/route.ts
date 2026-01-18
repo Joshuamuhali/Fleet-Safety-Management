@@ -6,7 +6,7 @@ import { handleError, auditLog, checkPermission } from "@/lib/api-helpers"
 /**
  * POST /api/trips/[tripId]/approve - Approve trip
  */
-export async function POST(req: NextRequest, { params }: { params: { tripId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tripId: string }> }) {
   try {
     const user = await getCurrentUserServer()
     if (!user) {
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: { tripId: str
 
     const body = await req.json()
     const supabase = await getSupabaseServer()
-    const tripId = params.tripId
+    const { tripId } = await params
 
     // Check user role
     const { data: userData } = await supabase.from("users").select("role, org_id").eq("id", user.id).single()

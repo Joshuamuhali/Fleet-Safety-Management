@@ -173,10 +173,10 @@ export async function GET(req: NextRequest) {
     // Summary statistics
     result.summary = {
       totalSubmissions: submissions?.length || 0,
-      pendingSubmissions: submissions?.filter(s => s.submission_status === "pending").length || 0,
-      acceptedSubmissions: submissions?.filter(s => s.submission_status === "accepted").length || 0,
-      activeCertificates: certificates?.filter(c => c.status === "active").length || 0,
-      unpaidViolations: violations?.filter(v => v.payment_status === "pending").length || 0,
+      pendingSubmissions: submissions?.filter((s: any) => s.submission_status === "pending").length || 0,
+      acceptedSubmissions: submissions?.filter((s: any) => s.submission_status === "accepted").length || 0,
+      activeCertificates: certificates?.filter((c: any) => c.status === "active").length || 0,
+      unpaidViolations: violations?.filter((v: any) => v.payment_status === "pending").length || 0,
     }
 
     return NextResponse.json({
@@ -501,6 +501,108 @@ async function processViolationReport(
     return rtsaResponse
   } catch (error) {
     console.error("Error processing violation report:", error)
+    throw error
+  }
+}
+
+/**
+ * Process incident report submission
+ */
+async function processIncidentReport(
+  supabase: any, 
+  tripId: string, 
+  submission: any
+): Promise<any> {
+  try {
+    // Get trip and incident data
+    const { data: tripData } = await supabase
+      .from("trips")
+      .select(`
+        *,
+        trip_modules(*),
+        module_items(*)
+      `)
+      .eq("id", tripId)
+      .single()
+
+    if (!tripData) {
+      throw new Error("Trip data not found")
+    }
+
+    // Get incident details from submission data
+    const incidentData = submission.submission_data || {}
+
+    // Prepare incident report data for RTSA
+    const reportData = {
+      incidentDetails: {
+        incidentId: incidentData.incidentId || `INC-${tripId.substring(0, 8)}`,
+        incidentType: incidentData.incidentType || "unknown",
+        incidentDate: incidentData.incidentDate || tripData.trip_date,
+        location: {
+          latitude: incidentData.latitude,
+          longitude: incidentData.longitude,
+          address: incidentData.address,
+        },
+        description: incidentData.description,
+        severity: incidentData.severity || "medium",
+        injuries: incidentData.injuries || false,
+        fatalities: incidentData.fatalities || false,
+        propertyDamage: incidentData.propertyDamage || false,
+      },
+      tripDetails: {
+        tripId: tripId,
+        tripDate: tripData.trip_date,
+        route: tripData.route,
+        driverId: tripData.user_id,
+      },
+      vehicleDetails: {
+        vehicleId: tripData.vehicle_id,
+        vehiclePlate: tripData.vehicle_plate,
+      },
+      submissionTimestamp: new Date().toISOString(),
+    }
+
+    // Simulate RTSA API call
+    const rtsaResponse = await simulateRTSAApiCall("incident_report", reportData)
+
+    // Create incident report record if successful
+    if (rtsaResponse.success) {
+      await supabase.from("incident_reports").insert({
+        trip_id: tripId,
+        driver_id: tripData.user_id,
+        company_id: tripData.org_id,
+        incident_type: reportData.incidentDetails.incidentType,
+        incident_date: reportData.incidentDetails.incidentDate,
+        location_lat: reportData.incidentDetails.location.latitude,
+        location_lng: reportData.incidentDetails.location.longitude,
+        location_address: reportData.incidentDetails.location.address,
+        description: reportData.incidentDetails.description,
+        severity: reportData.incidentDetails.severity,
+        injuries: reportData.incidentDetails.injuries,
+        fatalities: reportData.incidentDetails.fatalities,
+        property_damage: reportData.incidentDetails.propertyDamage,
+        reported_to_rtsa: true,
+        rtsa_report_reference: rtsaResponse.referenceNumber,
+        rtsa_reported_at: new Date().toISOString(),
+        incident_details: reportData,
+      })
+    }
+
+    // Update submission
+    await supabase
+      .from("rtsa_submissions")
+      .update({
+        submission_status: rtsaResponse.success ? "submitted" : "rejected",
+        submitted_at: new Date().toISOString(),
+        rtsa_response_at: new Date().toISOString(),
+        rtsa_response_data: rtsaResponse,
+        rejection_reason: rtsaResponse.success ? null : rtsaResponse.error,
+      })
+      .eq("id", submission.id)
+
+    return rtsaResponse
+  } catch (error) {
+    console.error("Error processing incident report:", error)
     throw error
   }
 }

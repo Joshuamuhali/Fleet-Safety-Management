@@ -6,7 +6,7 @@ import { handleError, auditLog } from "@/lib/api-helpers"
 /**
  * GET /api/trips/[tripId] - Fetch specific trip
  */
-export async function GET(req: NextRequest, { params }: { params: { tripId: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tripId: string }> }) {
   try {
     const user = await getCurrentUserServer()
     if (!user) {
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: { tripId: stri
     }
 
     const supabase = await getSupabaseServer()
-    const tripId = params.tripId
+    const { tripId } = await params
 
     // Fetch trip with modules
     const { data: trip, error: tripError } = await supabase
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: { tripId: stri
 /**
  * PATCH /api/trips/[tripId] - Update trip
  */
-export async function PATCH(req: NextRequest, { params }: { params: { tripId: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ tripId: string }> }) {
   try {
     const user = await getCurrentUserServer()
     if (!user) {
@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { tripId: st
 
     const body = await req.json()
     const supabase = await getSupabaseServer()
-    const tripId = params.tripId
+    const { tripId } = await params
 
     // Get trip
     const { data: trip } = await supabase.from("trips").select("*").eq("id", tripId).single()

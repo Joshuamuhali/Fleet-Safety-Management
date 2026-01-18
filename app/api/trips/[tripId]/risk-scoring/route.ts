@@ -437,21 +437,21 @@ export async function DASHBOARD(req: NextRequest, { params }: Params) {
       },
       moduleBreakdown: {
         totalModules: moduleScores.length,
-        completedModules: moduleScores.filter(m => m.completionRate === 1.0).length,
-        criticalModules: moduleScores.filter(m => m.riskLevel === 'critical').length,
-        highRiskModules: moduleScores.filter(m => m.riskLevel === 'high').length,
+        completedModules: moduleScores.filter((m: any) => m.completionRate === 1.0).length,
+        criticalModules: moduleScores.filter((m: any) => m.riskLevel === 'critical').length,
+        highRiskModules: moduleScores.filter((m: any) => m.riskLevel === 'high').length,
         modules: moduleScores,
       },
       alerts: {
         activeCount: activeAlerts?.length || 0,
-        criticalCount: activeAlerts?.filter(a => a.severity === 'critical').length || 0,
-        warningCount: activeAlerts?.filter(a => a.severity === 'warning').length || 0,
+        criticalCount: activeAlerts?.filter((a: any) => a.severity === 'critical').length || 0,
+        warningCount: activeAlerts?.filter((a: any) => a.severity === 'warning').length || 0,
         recentAlerts: activeAlerts || [],
       },
       violations: {
         totalViolations: recentViolations?.length || 0,
-        criticalViolations: recentViolations?.filter(v => v.severity === 'critical').length || 0,
-        majorViolations: recentViolations?.filter(v => v.severity === 'major').length || 0,
+        criticalViolations: recentViolations?.filter((v: any) => v.severity === 'critical').length || 0,
+        majorViolations: recentViolations?.filter((v: any) => v.severity === 'major').length || 0,
         recentViolations: recentViolations || [],
       },
       riskFactors: {

@@ -503,15 +503,20 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
-      // 1️⃣ Sign up user with email confirmation
+      // 1️⃣ Sign up user with email confirmation link (not OTP)
+      // Email template in Supabase will send confirmation link
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: signUpData.email,
         password: signUpData.password,
         options: {
           data: {
             full_name: signUpData.fullName,
+            role: signUpData.role, // Store role in metadata for callback handler
           },
-          emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/verify-otp` : '/auth/verify-otp',
+          // Redirect to callback route when user clicks email confirmation link
+          emailRedirectTo: typeof window !== 'undefined' 
+            ? `${window.location.origin}/auth/callback` 
+            : '/auth/callback',
         }
       })
 
@@ -526,10 +531,56 @@ export default function AuthPage() {
         return
       }
 
-      // 2️⃣ Temporarily store signup context (OTP step needs this)
+      console.log('Signup successful, requesting confirmation email for:', signUpData.email)
+
+      // 2️⃣ Explicitly request confirmation email if not sent automatically
+      // This ensures email is sent even if email confirmation is disabled in Supabase
+      let emailSent = false
+      try {
+        const resendResponse = await fetch('/api/auth/resend-confirmation', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: signUpData.email }),
+        })
+
+        const resendResult = await resendResponse.json()
+        
+        if (!resendResponse.ok) {
+          console.warn('Failed to send confirmation email:', resendResult)
+          // Show warning but don't fail signup - user can request manually
+          toast({
+            title: "Account Created",
+            description: "Account created but confirmation email failed. Please use 'Resend Email' button.",
+            variant: "destructive"
+          })
+        } else {
+          console.log('Confirmation email sent successfully')
+          emailSent = true
+        }
+      } catch (resendError) {
+        console.error('Error sending confirmation email:', resendError)
+        // Don't fail signup if resend fails, user can request it manually
+        toast({
+          title: "Account Created",
+          description: "Account created. If you don't receive email, use 'Resend Email' button.",
+          variant: "default"
+        })
+      }
+
+      // Show success message if email was sent
+      if (emailSent) {
+        toast({
+          title: "Account Created!",
+          description: "Please check your email (and spam folder) for the confirmation link.",
+        })
+      }
+
+      // 3️⃣ Temporarily store signup context (OTP step needs this)
       await setSignupContext(signUpData.email, signUpData.role)
 
-      // 3️⃣ Create user profile (idempotent)
+      // 4️⃣ Create user profile (idempotent)
       const response = await fetch('/api/create-user', {
         method: 'POST',
         headers: {
@@ -549,18 +600,15 @@ export default function AuthPage() {
       if (!response.ok || result.error) {
         console.error('Profile creation error:', result.error)
         // Don't fail the signup if profile creation fails, but log it
-        console.log('Profile creation failed, but user was created successfully')
+        // The callback handler will try to create the profile automatically if needed
+        console.log('Profile creation failed, but user was created successfully. Profile will be created on email confirmation.')
       }
 
-      toast({
-        title: "Account Created!",
-        description: "Please check your email for OTP verification code.",
-      })
+      // 5️⃣ Redirect to check-email page (for email link confirmation)
+      // OTP verification page is still available at /auth/verify-otp if needed
+      router.push(`/auth/check-email?email=${encodeURIComponent(signUpData.email)}`)
 
-      // 4️⃣ Redirect to OTP verification with email parameter
-      router.push(`/auth/verify-otp?email=${encodeURIComponent(signUpData.email)}`)
-
-      // Don't clear form yet - let OTP page handle cleanup after successful verification
+      // Don't clear form yet - let check-email page handle cleanup after successful verification
     } catch (err) {
       setErrors({ signup: "An unexpected error occurred. Please try again." })
     } finally {

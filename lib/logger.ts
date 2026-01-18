@@ -159,5 +159,3 @@ class Logger {
 // Export singleton instance
 export const logger = new Logger()
 
-// Export types for use in other modules
-export type { LogEntry }

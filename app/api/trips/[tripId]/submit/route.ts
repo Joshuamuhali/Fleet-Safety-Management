@@ -6,7 +6,7 @@ import { handleError, auditLog, calculateAggregateScore, getRiskLevelFromScore }
 /**
  * POST /api/trips/[tripId]/submit - Submit trip for approval
  */
-export async function POST(req: NextRequest, { params }: { params: { tripId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tripId: string }> }) {
   try {
     const user = await getCurrentUserServer()
     if (!user) {
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest, { params }: { params: { tripId: str
     }
 
     const supabase = await getSupabaseServer()
-    const tripId = params.tripId
+    const { tripId } = await params
 
     // Get trip
     const { data: trip } = await supabase.from("trips").select("*, trip_modules(*)").eq("id", tripId).single()
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: { tripId: str
       maxScores[module.id] = 90
     })
 
-    const aggregateScore = calculateAggregateScore(moduleScores, maxScores)
+    const aggregateScore = calculateAggregateScore(Object.values(moduleScores))
     const riskLevel = getRiskLevelFromScore(aggregateScore)
 
     // Check for critical failures

@@ -80,7 +80,7 @@ export default function SupervisorDashboard() {
         .limit(50)
 
       // Process drivers data
-      const processedDrivers = driversData?.map(driver => ({
+      const processedDrivers = driversData?.map((driver: any) => ({
         id: driver.id,
         email: driver.email,
         full_name: driver.profiles?.full_name || 'Unknown',
@@ -110,7 +110,7 @@ export default function SupervisorDashboard() {
         .order('created_at', { ascending: false })
         .limit(20)
 
-      const processedApprovals = approvalsData?.map(trip => ({
+      const processedApprovals = approvalsData?.map((trip: any) => ({
         id: trip.id,
         driver_name: trip.users.profiles.full_name,
         trip_date: trip.trip_date,
@@ -125,10 +125,10 @@ export default function SupervisorDashboard() {
 
       // Calculate stats
       setStats({
-        totalTripsSupervised: processedDrivers.reduce((acc, driver) => acc + driver.total_trips, 0),
+        totalTripsSupervised: processedDrivers.reduce((acc: number, driver: any) => acc + driver.total_trips, 0),
         pendingApprovals: processedApprovals.length,
         criticalFailuresWeek: 0, // TODO: Calculate from last 7 days
-        highRiskDrivers: processedDrivers.filter(driver => driver.risk_level === 'high').length
+        highRiskDrivers: processedDrivers.filter((driver: any) => driver.risk_level === 'high').length
       })
 
     } catch (error) {

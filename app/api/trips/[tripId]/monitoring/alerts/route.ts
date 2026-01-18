@@ -112,10 +112,10 @@ export async function GET(req: NextRequest, { params }: Params) {
         supervisor: supervisorInfo,
         summary: {
           total: alerts?.length || 0,
-          critical: alerts?.filter(a => a.severity === "critical").length || 0,
-          warning: alerts?.filter(a => a.severity === "warning").length || 0,
-          info: alerts?.filter(a => a.severity === "info").length || 0,
-          unacknowledged: alerts?.filter(a => !a.acknowledged).length || 0,
+          critical: alerts?.filter((a: any) => a.severity === "critical").length || 0,
+          warning: alerts?.filter((a: any) => a.severity === "warning").length || 0,
+          info: alerts?.filter((a: any) => a.severity === "info").length || 0,
+          unacknowledged: alerts?.filter((a: any) => !a.acknowledged).length || 0,
         }
       },
     })
@@ -247,10 +247,10 @@ export async function POST(req: NextRequest, { params }: Params) {
  */
 export async function PUT(
   req: NextRequest, 
-  { params }: { params: { tripId: string; alertId: string } }
+  { params }: { params: Promise<{ tripId: string; alertId: string }> }
 ) {
   try {
-    const { tripId, alertId } = params
+    const { tripId, alertId } = await params
     const user = await getCurrentUserServer()
     if (!user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })

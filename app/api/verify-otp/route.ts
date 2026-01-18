@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Verify OTP using Supabase's built-in system
     const { data, error } = await supabase.auth.verifyOtp({
       email,
       token,

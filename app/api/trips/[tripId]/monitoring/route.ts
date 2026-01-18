@@ -94,9 +94,9 @@ export async function GET(req: NextRequest, { params }: Params) {
       result.speedViolations = violations || []
       result.violationSummary = {
         total: violations?.length || 0,
-        critical: violations?.filter(v => v.severity === "critical").length || 0,
-        major: violations?.filter(v => v.severity === "major").length || 0,
-        minor: violations?.filter(v => v.severity === "minor").length || 0,
+        critical: violations?.filter((v: any) => v.severity === "critical").length || 0,
+        major: violations?.filter((v: any) => v.severity === "major").length || 0,
+        minor: violations?.filter((v: any) => v.severity === "minor").length || 0,
       }
     }
 
@@ -127,9 +127,9 @@ export async function GET(req: NextRequest, { params }: Params) {
       result.activeAlerts = alerts || []
       result.alertSummary = {
         total: alerts?.length || 0,
-        critical: alerts?.filter(a => a.severity === "critical").length || 0,
-        warning: alerts?.filter(a => a.severity === "warning").length || 0,
-        info: alerts?.filter(a => a.severity === "info").length || 0,
+        critical: alerts?.filter((a: any) => a.severity === "critical").length || 0,
+        warning: alerts?.filter((a: any) => a.severity === "warning").length || 0,
+        info: alerts?.filter((a: any) => a.severity === "info").length || 0,
       }
     }
 
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     // Rate limiting for monitoring updates
-    const rateLimit = await checkRateLimit(user.id, "monitoring_update", 60, 100) // 100 updates per minute
+    const rateLimit = await checkRateLimit(user.id, "monitoring_update")
     if (!rateLimit.allowed) {
       return NextResponse.json({ success: false, error: "Rate limit exceeded" }, { status: 429 })
     }

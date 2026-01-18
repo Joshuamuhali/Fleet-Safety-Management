@@ -103,7 +103,7 @@ export class ReportGenerator {
       const summary = {
         totalPoints: trip.aggregate_score,
         riskLevel: trip.risk_level,
-        criticalFailures: data.filter(item => item.critical && item.points > 0).length,
+        criticalFailures: data.filter((item: any) => item.critical && item.points > 0).length,
         completionTime: this.calculateCompletionTime(trip.created_at, trip.completed_at)
       }
 
@@ -329,18 +329,18 @@ export class ReportGenerator {
       
       // Calculate compliance metrics
       const totalTrips = trips.length
-      const approvedTrips = trips.filter(trip => trip.status === 'approved').length
-      const failedTrips = trips.filter(trip => trip.status === 'failed').length
-      const pendingTrips = trips.filter(trip => trip.status === 'pending').length
+      const approvedTrips = trips.filter((trip: any) => trip.status === 'approved').length
+      const failedTrips = trips.filter((trip: any) => trip.status === 'failed').length
+      const pendingTrips = trips.filter((trip: any) => trip.status === 'pending').length
       
       const complianceRate = totalTrips > 0 ? (approvedTrips / totalTrips) * 100 : 0
       const failureRate = totalTrips > 0 ? (failedTrips / totalTrips) * 100 : 0
 
       // Risk distribution
       const riskDistribution = {
-        low: trips.filter(trip => trip.risk_level === 'low').length,
-        medium: trips.filter(trip => trip.risk_level === 'medium').length,
-        high: trips.filter(trip => trip.risk_level === 'high').length
+        low: trips.filter((trip: any) => trip.risk_level === 'low').length,
+        medium: trips.filter((trip: any) => trip.risk_level === 'medium').length,
+        high: trips.filter((trip: any) => trip.risk_level === 'high').length
       }
 
       // Average scores by role

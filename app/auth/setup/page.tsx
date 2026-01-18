@@ -91,32 +91,27 @@ function AuthSetupContent() {
         return
       }
 
-      // Create user profile
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert({
-          id: user.id,
+      // Create user profile using API endpoint (bypasses RLS with service role key)
+      const profileResponse = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
           email: user.email,
           role: formData.role,
-          org_id: formData.organization ? null : null, // TODO: Handle org creation/selection
-        })
+          fullName: formData.fullName,
+          isVerified: true, // User is already authenticated
+        }),
+      })
 
-      if (profileError) {
-        console.error('Error creating user profile:', profileError)
-        setErrors({ submit: 'Failed to create user profile' })
+      const profileResult = await profileResponse.json()
+
+      if (!profileResponse.ok || profileResult.error) {
+        console.error('Error creating user profile:', profileResult.error)
+        setErrors({ submit: profileResult.error || 'Failed to create user profile' })
         return
-      }
-
-      // Create additional profile data
-      const { error: additionalProfileError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: user.id,
-          full_name: formData.fullName,
-        })
-
-      if (additionalProfileError) {
-        console.error('Error creating additional profile:', additionalProfileError)
       }
 
       toast({

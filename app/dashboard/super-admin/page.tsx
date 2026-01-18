@@ -99,7 +99,7 @@ export default function SuperAdminDashboard() {
         `)
         .limit(50)
 
-      const processedOrgs = orgsData?.map(org => ({
+      const processedOrgs = orgsData?.map((org: any) => ({
         id: org.id,
         name: org.name,
         location: org.location,
@@ -128,7 +128,7 @@ export default function SuperAdminDashboard() {
         .order('created_at', { ascending: false })
         .limit(100)
 
-      const processedUsers = usersData?.map(user => ({
+      const processedUsers = usersData?.map((user: any) => ({
         id: user.id,
         email: user.email,
         role: user.role,

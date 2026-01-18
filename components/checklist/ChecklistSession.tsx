@@ -18,6 +18,7 @@ import {
   FileText,
   Send
 } from 'lucide-react'
+import { AppInlineLoader } from '@/components/ui/app-loader'
 
 interface ChecklistSessionProps {
   driverId: string
