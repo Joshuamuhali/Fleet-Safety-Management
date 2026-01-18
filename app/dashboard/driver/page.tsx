@@ -7,7 +7,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { AvatarUpload } from '@/components/ui/avatar-upload'
 import { useToast } from '@/components/ui/use-toast'
+import { TestService, TestAttempt, TestMetrics, Schedule } from '@/lib/test-service'
 import { 
   Truck, 
   FileText, 
@@ -47,22 +49,67 @@ interface UserProfile {
   license_number?: string
   role: string
   created_at: string
+  avatar_url?: string
 }
 
 export default function DriverDashboard() {
   const [user, setUser] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [tests, setTests] = useState<Test[]>([])
+  const [tests, setTests] = useState<TestAttempt[]>([])
+  const [metrics, setMetrics] = useState<TestMetrics>({
+    totalTests: 0,
+    completedTests: 0,
+    pendingTests: 0,
+    successRate: 0
+  })
+  const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [loadingSchedules, setLoadingSchedules] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
   const router = useRouter()
   const params = useParams()
   const { toast } = useToast()
   const supabase = getSupabaseClient()
+  const testService = new TestService()
 
   useEffect(() => {
     checkAuth()
   }, [])
+
+  const fetchSchedules = async (driverId: string) => {
+    try {
+      setLoadingSchedules(true)
+      const userSchedules = await testService.getUserSchedules(driverId)
+      setSchedules(userSchedules)
+    } catch (error) {
+      console.error('Error fetching schedules:', error)
+    } finally {
+      setLoadingSchedules(false)
+    }
+  }
+
+  const fetchTests = async (driverId: string) => {
+    try {
+      const testHistory = await testService.getComprehensiveTestHistory(driverId)
+      setTests(testHistory)
+      setMetrics(testService.calculateMetrics(testHistory))
+    } catch (error) {
+      console.error('Error fetching tests:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load test history",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const refreshData = async () => {
+    if (!user) return
+    setRefreshing(true)
+    await fetchTests(user.id)
+    setRefreshing(false)
+  }
 
   const checkAuth = async () => {
     try {
@@ -108,6 +155,7 @@ export default function DriverDashboard() {
               const data = await response.json()
               if (data.success && data.users && data.users.length > 0) {
                 setUserProfile(data.users[0])
+                await fetchTests(session.user.id)
                 return
               }
             }
@@ -136,12 +184,13 @@ export default function DriverDashboard() {
         if (!profile.profiles) {
           const { data: profileData, error: profileDataError } = await supabase
             .from('profiles')
-            .select('full_name')
+            .select('full_name, avatar_url')
             .eq('user_id', session.user.id)
             .single()
           
           if (!profileDataError && profileData) {
             profile.full_name = profileData.full_name
+            profile.avatar_url = profileData.avatar_url
           }
         } else {
           profile.full_name = profile.profiles
@@ -150,94 +199,26 @@ export default function DriverDashboard() {
         setUserProfile(profile)
       }
 
-      // Fetch trips (pre-trip inspections) - these are the main "tests"
-      const { data: tripsData, error: tripsError } = await supabase
-        .from('trips')
-        .select('*')
-        .or(`user_id.eq.${session.user.id},driver_id.eq.${session.user.id}`)
-        .order('created_at', { ascending: false })
-        .limit(100)
+      // Fetch comprehensive test history
+      await fetchTests(session.user.id)
+      
+      // Fetch schedules for Quick Actions
+      await fetchSchedules(session.user.id)
 
-      // Fetch test history (separate test system)
-      const { data: historyRows, error: historyError } = await supabase
-        .from('test_history')
-        .select('*')
-        .eq('driver_id', session.user.id)
-        .order('completed_at', { ascending: false })
-
-      // Fetch test results (fallback)
-      const { data: resultRows, error: resultsError } = await supabase
-        .from('test_results')
-        .select('*')
-        .eq('driver_id', session.user.id)
-        .order('completed_at', { ascending: false })
-
-      // Combine all test data
-      const allTests: Test[] = []
-
-      // Map trips to Test interface
-      if (tripsData && !tripsError) {
-        tripsData.forEach((trip: any) => {
-          allTests.push({
-            id: trip.id,
-            driver_id: trip.user_id || trip.driver_id || session.user.id,
-            test_type: 'Pre-Trip Inspection',
-            status: trip.status === 'approved' ? 'completed' : 
-                   trip.status === 'rejected' || trip.status === 'failed' ? 'failed' :
-                   trip.status === 'submitted' || trip.status === 'under_review' ? 'in_progress' : 'pending',
-            score: trip.aggregate_score,
-            created_at: trip.created_at,
-            completed_at: trip.status === 'approved' || trip.status === 'rejected' ? trip.updated_at : undefined
-          })
+      // Set up real-time subscription for test updates
+      const subscription = testService.subscribeToTestUpdates(session.user.id, (updatedTest) => {
+        setTests(prevTests => {
+          const newTests = prevTests.map(test => 
+            test.id === updatedTest.id ? updatedTest : test
+          )
+          setMetrics(testService.calculateMetrics(newTests))
+          return newTests
         })
-      } else if (tripsError) {
-        console.error('Trips fetch error:', tripsError)
+      })
+
+      return () => {
+        subscription.unsubscribe()
       }
-
-      // Map test history to Test interface
-      if (historyRows && !historyError) {
-        historyRows.forEach((history: any) => {
-          allTests.push({
-            id: history.id,
-            driver_id: history.driver_id,
-            test_type: history.test_type || 'Safety Test',
-            status: history.status || 'completed',
-            score: history.final_score,
-            created_at: history.created_at,
-            completed_at: history.completed_at
-          })
-        })
-      } else if (historyError) {
-        console.error('Test history fetch error:', historyError)
-      }
-
-      // Map test results to Test interface
-      if (resultRows && !resultsError) {
-        resultRows.forEach((result: any) => {
-          allTests.push({
-            id: result.id,
-            driver_id: result.driver_id,
-            test_type: result.test_type || 'Safety Test',
-            status: result.status || 'completed',
-            score: result.score || result.percentage,
-            created_at: result.created_at || result.started_at,
-            completed_at: result.completed_at
-          })
-        })
-      } else if (resultsError) {
-        console.error('Test results fetch error:', resultsError)
-      }
-
-      // Sort by created_at descending and remove duplicates
-      const uniqueTests = allTests
-        .filter((test, index, self) => 
-          index === self.findIndex((t) => t.id === test.id)
-        )
-        .sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )
-
-      setTests(uniqueTests)
 
     } catch (error) {
       console.error('Auth check error:', error)
@@ -247,8 +228,46 @@ export default function DriverDashboard() {
     }
   }
 
-  const handleStartTest = (testType: string) => {
-    router.push(`/dashboard/driver/test?type=${testType}`)
+  const handleAvatarChange = (avatarUrl: string) => {
+    if (userProfile) {
+      setUserProfile({ ...userProfile, avatar_url: avatarUrl })
+    }
+  }
+
+  const handleStartTest = async (testType: string) => {
+    console.log('handleStartTest called with testType:', testType)
+    console.log('User state:', user)
+    
+    if (!user) {
+      console.error('No user found')
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please log in again.",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    try {
+      console.log('Creating test attempt for user:', user.id)
+      // Create or resume a test attempt
+      const testAttempt = await testService.createOrResumeTestAttempt(user.id, testType)
+      console.log('Test attempt created:', testAttempt)
+      
+      // Refresh data to show the new test
+      await refreshData()
+      
+      // Navigate to test page with attempt ID
+      console.log('Navigating to test page with ID:', testAttempt.id)
+      router.push(`/dashboard/driver/test?id=${testAttempt.id}&type=${testType}`)
+    } catch (error) {
+      console.error('Error starting test:', error)
+      toast({
+        title: "Error",
+        description: "Failed to start test. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   const handleLogout = async () => {
@@ -276,12 +295,21 @@ export default function DriverDashboard() {
     }
   }
 
-  const totalTests = tests.length
-  const completedTests = tests.filter(t => t.status === 'completed').length
-  const failedTests = tests.filter(t => t.status === 'failed').length
-  const pendingTests = tests.filter(t => t.status === 'pending' || t.status === 'in_progress').length
-  const gradedTests = completedTests + failedTests
-  const successRate = gradedTests > 0 ? Math.round((completedTests / gradedTests) * 100) : 0
+  const handleViewTestReport = async (testId: string) => {
+    router.push(`/dashboard/driver/test-report/${testId}`)
+  }
+
+  const handleViewSchedule = () => {
+    router.push('/dashboard/driver/schedule')
+  }
+
+  const handleViewSafetyRecords = () => {
+    router.push('/dashboard/driver/safety-records')
+  }
+
+  const handleResumeTest = async (testId: string) => {
+    router.push(`/dashboard/driver/test?id=${testId}`)
+  }
 
   if (loading) {
     return (
@@ -362,33 +390,47 @@ export default function DriverDashboard() {
         <div className="mb-8">
           <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl p-8 text-white shadow-xl">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-3xl font-bold mb-2">
-                  Welcome back, {userProfile?.full_name || 'Driver'}! 👋
-                </h2>
-                <p className="text-green-50 text-lg">
-                  Ready for today's journey? Your safety is our priority.
-                </p>
-                <div className="flex items-center space-x-4 mt-4">
-                  <div className="flex items-center space-x-2">
-                    <Shield className="h-5 w-5 text-green-100" />
-                    <span className="text-sm text-green-100">Safety First</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <MapPin className="h-5 w-5 text-green-100" />
-                    <span className="text-sm text-green-100">Route Optimized</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Zap className="h-5 w-5 text-green-100" />
-                    <span className="text-sm text-green-100">Efficient Driving</span>
+              <div className="flex items-center space-x-6">
+                {/* Avatar Section - Far Left */}
+                <div className="flex-shrink-0">
+                  <AvatarUpload
+                    currentAvatar={userProfile?.avatar_url}
+                    userId={user?.id || ''}
+                    onAvatarChange={handleAvatarChange}
+                    size="xl"
+                  />
+                </div>
+                
+                {/* Welcome Content */}
+                <div>
+                  <h2 className="text-3xl font-bold mb-2">
+                    Welcome back, {userProfile?.full_name || 'Driver'}! 👋
+                  </h2>
+                  <p className="text-green-50 text-lg">
+                    Ready for today's journey? Your safety is our priority.
+                  </p>
+                  <div className="flex items-center space-x-4 mt-4">
+                    <div className="flex items-center space-x-2">
+                      <Shield className="h-5 w-5 text-green-100" />
+                      <span className="text-sm text-green-100">Safety First</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <MapPin className="h-5 w-5 text-green-100" />
+                      <span className="text-sm text-green-100">Route Optimized</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Zap className="h-5 w-5 text-green-100" />
+                      <span className="text-sm text-green-100">Efficient Driving</span>
+                    </div>
                   </div>
                 </div>
               </div>
+              
               <div className="hidden lg:block">
                 <div className="bg-white/20 backdrop-blur-sm rounded-xl p-6 border border-white/30">
                   <div className="text-center">
                     <div className="text-4xl font-bold text-white mb-1">
-                      {completedTests}
+                      {metrics.completedTests}
                     </div>
                     <div className="text-sm text-green-100">Tests Completed</div>
                   </div>
@@ -402,18 +444,15 @@ export default function DriverDashboard() {
         <div className="mb-8">
           <div className="bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
             <nav className="flex space-x-1">
-              {[
-                { id: 'overview', label: 'Overview', icon: BarChart3 },
-                { id: 'tests', label: 'My Tests', icon: FileText },
-                { id: 'profile', label: 'Profile', icon: User }
-              ].map((tab) => (
+              {[{ id: 'overview', label: 'Overview', icon: BarChart3 }, { id: 'tests', label: 'My Tests', icon: FileText }, { id: 'profile', label: 'Profile', icon: User }].map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
+                  disabled={refreshing}
                   className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all ${
                     activeTab === tab.id
                       ? 'bg-green-600 text-white shadow-md'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 disabled:opacity-50'
                   }`}
                 >
                   <tab.icon className="h-4 w-4" />
@@ -434,7 +473,7 @@ export default function DriverDashboard() {
                   <div className="bg-green-100 rounded-lg p-3">
                     <FileText className="h-6 w-6 text-green-600" />
                   </div>
-                  <span className="text-2xl font-bold text-gray-900">{totalTests}</span>
+                  <span className="text-2xl font-bold text-gray-900">{metrics.totalTests}</span>
                 </div>
                 <h3 className="text-gray-900 font-semibold mb-1">Total Tests</h3>
                 <p className="text-gray-500 text-sm">All time assessments</p>
@@ -446,7 +485,7 @@ export default function DriverDashboard() {
                     <CheckCircle className="h-6 w-6 text-green-600" />
                   </div>
                   <span className="text-2xl font-bold text-gray-900">
-                    {completedTests}
+                    {metrics.completedTests}
                   </span>
                 </div>
                 <h3 className="text-gray-900 font-semibold mb-1">Completed</h3>
@@ -459,7 +498,7 @@ export default function DriverDashboard() {
                     <Clock className="h-6 w-6 text-yellow-600" />
                   </div>
                   <span className="text-2xl font-bold text-gray-900">
-                    {pendingTests}
+                    {metrics.pendingTests}
                   </span>
                 </div>
                 <h3 className="text-gray-900 font-semibold mb-1">Pending</h3>
@@ -472,7 +511,7 @@ export default function DriverDashboard() {
                     <TrendingUp className="h-6 w-6 text-emerald-600" />
                   </div>
                   <span className="text-2xl font-bold text-gray-900">
-                    {successRate}%
+                    {metrics.successRate}%
                   </span>
                 </div>
                 <h3 className="text-gray-900 font-semibold mb-1">Success Rate</h3>
@@ -492,13 +531,16 @@ export default function DriverDashboard() {
                   Start Pre-Trip Test
                 </Button>
                 <Button 
+                  onClick={handleViewSchedule}
                   variant="outline"
+                  disabled={loadingSchedules}
                   className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900 h-12"
                 >
                   <Calendar className="h-4 w-4 mr-2" />
-                  View Schedule
+                  {loadingSchedules ? 'Loading...' : schedules.length > 0 ? `View Schedule (${schedules.length})` : 'View Schedule'}
                 </Button>
                 <Button 
+                  onClick={handleViewSafetyRecords}
                   variant="outline"
                   className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900 h-12"
                 >
@@ -506,6 +548,28 @@ export default function DriverDashboard() {
                   Safety Records
                 </Button>
               </div>
+              
+              {/* Schedule Preview */}
+              {schedules.length > 0 && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-2">Upcoming Schedule</h4>
+                  <div className="space-y-2">
+                    {schedules.slice(0, 2).map((schedule) => (
+                      <div key={schedule.id} className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">{schedule.route_name}</span>
+                        <span className="text-gray-900">
+                          {new Date(schedule.shift_date).toLocaleDateString()} • {schedule.start_time}
+                        </span>
+                      </div>
+                    ))}
+                    {schedules.length > 2 && (
+                      <div className="text-sm text-gray-500">
+                        +{schedules.length - 2} more assignments
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -586,12 +650,18 @@ export default function DriverDashboard() {
                             </span>
                           </div>
                         )}
+                        {test.progress && test.progress > 0 && test.status === 'pending' && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600 text-sm">Progress</span>
+                            <span className="text-gray-900 text-sm">{test.progress}%</span>
+                          </div>
+                        )}
                         <Button 
                           variant="outline" 
                           className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                          onClick={() => router.push(`/dashboard/driver/test/${test.id}`)}
+                          onClick={() => test.status === 'pending' ? handleResumeTest(test.id) : handleViewTestReport(test.id)}
                         >
-                          View Details
+                          {test.status === 'pending' ? 'Resume Test' : 'View Report'}
                         </Button>
                       </div>
                     </div>
@@ -608,9 +678,12 @@ export default function DriverDashboard() {
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <div className="bg-green-600 rounded-full p-3">
-                      <User className="h-8 w-8 text-white" />
-                    </div>
+                    <AvatarUpload
+                      currentAvatar={userProfile?.avatar_url}
+                      userId={user?.id || ''}
+                      onAvatarChange={handleAvatarChange}
+                      size="lg"
+                    />
                     <div>
                       <h3 className="text-xl font-semibold text-gray-900">Driver Profile</h3>
                       <p className="text-gray-600">Manage your personal information</p>
